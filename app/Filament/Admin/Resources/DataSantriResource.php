@@ -4393,6 +4393,114 @@ class DataSantriResource extends Resource
                     ))
                     ->deselectRecordsAfterCompletion(),
 
+                    Tables\Actions\BulkAction::make('lanjutsemester')
+                    ->label(__('Lanjut Semester'))
+                    ->color('success')
+                    ->visible(fn($livewire): bool => $livewire->activeTab === 'Aktif' && auth()->user()->id == 1)
+                    // ->requiresConfirmation()
+                    // ->modalIcon('heroicon-o-check-circle')
+                    // ->modalIconColor('success')
+                    // ->modalHeading('Simpan data santri tinggal kelas?')
+                    // ->modalDescription('Setelah klik tombol "Simpan", maka status akan berubah')
+                    // ->modalSubmitActionLabel('Simpan')
+                    ->action(fn(Collection $records, array $data) => $records->each(
+                        function ($record) {
+
+                            $tahunberjalanaktif = TahunBerjalan::where('is_active', 1)->first();
+                            $ts = TahunBerjalan::where('tb', $tahunberjalanaktif->ts)->first();
+
+                            $cekdatats = KelasSantri::where('tahun_berjalan_id', $ts->id)
+                                ->where('santri_id', $record->santri_id)->count();
+
+                            if ($cekdatats == 0) {
+                                //cek apakah sudah ada data tahun berjalan selanjutnya di kelas_santris
+
+                                $cekkelassantrisaatini = KelasSantri::where('tahun_berjalan_id', $tahunberjalanaktif->id)
+                                    ->where('santri_id', $record->santri_id)->first();
+
+                                $cekkelasterakhir = QismDetailHasKelas::where('qism_id', $cekkelassantrisaatini->qism_id)
+                                    ->where('qism_detail_id', $cekkelassantrisaatini->qism_detail_id)
+                                    ->where('kelas_id', $cekkelassantrisaatini->kelas_id)->first();
+
+                                if ($cekkelasterakhir->terakhir == null) {
+                                    //cek apakah santri yang dipilih sedang di kelas terakhir sesuai qismnya,
+                                    //null = tidak di kelas terakhir
+                                    //!null = di kelas terakhir
+                                    //jika null, maka santri relevan untuk naik kelas
+                                    //jika !null, maka santri tidak relevan untuk naik kelas
+
+                                    $tahunberjalanaktif = TahunBerjalan::where('is_active', 1)->first();
+                                    $ts = TahunBerjalan::where('tb', $tahunberjalanaktif->ts)->first();
+
+                                    $gettaaktif = TahunAjaranAktif::where('qism_id', $record->qism_id)->where('is_active', 1)->first();
+
+                                    $getta = TahunAjaran::where('id', $gettaaktif->tahun_ajaran_id)->first();
+
+                                    $getsemaktif = TahunAjaranAktif::where('qism_id', $record->qism_id)->where('is_active', 1)->first();
+
+                                    $getsem = Semester::where('qism_id', $record->qism_id)->where('sem_id', $getsemaktif->semester_id)->first();
+
+                                    $data_s = QismDetailHasKelas::where('qism_id', $cekkelassantrisaatini->qism_id)
+                                        ->where('qism_detail_id', $cekkelassantrisaatini->qism_detail_id)
+                                        ->where('kelas_id', $cekkelassantrisaatini->kelas_id)->first();
+
+                                    $semberjalan = SemesterBerjalan::where('is_active', false)->first();
+
+                                    $santri = Santri::where('id', $record->santri_id)->first();
+
+                                    $kelassantri = new KelasSantri;
+
+                                    $kelassantri->santri_id = $record->santri_id;
+                                    $kelassantri->mahad_id = '1';
+                                    $kelassantri->tahun_berjalan_id = $ts->id;
+                                    $kelassantri->tahun_ajaran_id = $getta->tahun_ajaran_id;
+                                    $kelassantri->semester_id = $getsem->sem_sel;
+                                    $kelassantri->qism_id = $data_s->qism_s;
+                                    $kelassantri->qism_detail_id = $data_s->qism_detail_s;
+                                    $kelassantri->kelas_id = $data_s->kelas_s;
+                                    $kelassantri->semester_berjalan_id = $semberjalan->id;
+                                    $kelassantri->nama_lengkap = $santri->nama_lengkap;
+                                    $kelassantri->is_active = 1;
+                                    $kelassantri->save();
+
+                                    Notification::make()
+                                        ->success()
+                                        ->title('Status Ananda telah diupdate')
+                                        ->icon('heroicon-o-check-circle')
+                                        // ->persistent()
+                                        ->color('Success')
+                                        // ->actions([
+                                        //     Action::make('view')
+                                        //         ->button(),
+                                        //     Action::make('undo')
+                                        //         ->color('secondary'),
+                                        // ])
+                                        ->send();
+                                } elseif ($cekkelasterakhir->terakhir !== null) {
+
+                                    Notification::make()
+                                        ->success()
+                                        ->title('Santri tidak dapat diubah status "Naik Kelas"')
+                                        ->icon('heroicon-o-exclamation-triangle')
+                                        ->iconColor('danger')
+                                        // ->persistent()
+                                        ->color('warning')
+                                        ->send();
+                                }
+                            } elseif ($cekdatats !== 0) {
+                                Notification::make()
+                                    ->success()
+                                    ->title('Santri tidak dapat diubah status "Naik Kelas"')
+                                    ->icon('heroicon-o-exclamation-triangle')
+                                    ->iconColor('danger')
+                                    // ->persistent()
+                                    ->color('warning')
+                                    ->send();
+                            }
+                        }
+                    ))
+                    ->deselectRecordsAfterCompletion(),
+
                 Tables\Actions\BulkAction::make('naikkelas')
                     ->label(__('Naik Kelas'))
                     ->color('success')
